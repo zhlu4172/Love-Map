@@ -1,0 +1,37 @@
+# Ignore Xcode generated files
+*.xcuserdata
+*.xcworkspace
+*.xcodeproj/project.xcworkspace/xcuserdata
+*.xcodeproj/xcuserdata
+
+# Derived Data folder
+DerivedData/
+
+# Build files
+build/
+
+# CocoaPods folder
+Pods/
+
+# Carthage folder
+Carthage/
+
+# Swift Package Manager folders
+/.build/
+/Package.resolved
+
+# Firebase configuration file (if it's a public repository)
+GoogleService-Info.plist
+
+# Fastlane provisioning and signing files
+*.mobileprovision
+*.ipa
+*.dSYM
+
+# IDE cache
+.idea/
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db
