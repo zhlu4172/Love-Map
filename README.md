@@ -23,10 +23,10 @@
 
 ## Features 🌟
 ### 1. **Launch Screen**
-![Launch Screen](imgs/Launch_screen.png)
+<img src="imgs/Launch_screen.png" alt="Launch Screen" width="300">
 
-### 1. **Authentication**
-![Log in Screen](assets/login.png)
+### 2. **Authentication**
+<img src="imgs/Login.png" alt="Log in Screen" width="300">
    - Secure login with email.
    - Options to log in using Google or Apple accounts.
    
