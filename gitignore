@@ -21,7 +21,7 @@ Carthage/
 /Package.resolved
 
 # Firebase configuration file (if it's a public repository)
-GoogleService-Info.plist
+/GoogleService-Info.plist
 
 # Fastlane provisioning and signing files
 *.mobileprovision
