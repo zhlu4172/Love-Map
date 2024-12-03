@@ -9,13 +9,19 @@ import Foundation
 import SwiftUI
 import GoogleMaps
 
+
 struct GoogleMapView: UIViewControllerRepresentable {
+    var userId: String // 当前登录用户的 UID
+
     func makeUIViewController(context: Context) -> GoogleMapViewController {
-        return GoogleMapViewController() // 使用我们刚刚创建的 UIViewController
+        let viewController = GoogleMapViewController()
+        viewController.userId = userId // 将用户 ID 传递给 ViewController
+        return viewController
     }
 
     func updateUIViewController(_ uiViewController: GoogleMapViewController, context: Context) {
-        // 可以根据需要更新视图控制器的内容
+        // 如果需要动态更新视图控制器，可以在这里实现
     }
 }
+
 
