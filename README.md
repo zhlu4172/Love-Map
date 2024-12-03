@@ -27,10 +27,13 @@
 
 ### 2. **Authentication**
 <img src="imgs/Login.png" alt="Log in Screen" width="300">
+
    - Secure login with email.
    - Options to log in using Google or Apple accounts.
    
 ### 2. **User Profiles**
+<img src="imgs/profile.png" alt="Profile Page" width="300">
+
    - Create and customize your profile with a name and avatar.
    - View a summary of all your travel stats.
 
