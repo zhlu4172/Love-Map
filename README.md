@@ -22,7 +22,11 @@
 ---
 
 ## Features 🌟
+### 1. **Launch Screen**
+![Launch Screen](imgs/Launch_screen.png)
+
 ### 1. **Authentication**
+![Log in Screen](assets/login.png)
    - Secure login with email.
    - Options to log in using Google or Apple accounts.
    
