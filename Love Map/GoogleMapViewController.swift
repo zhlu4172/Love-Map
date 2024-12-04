@@ -1,108 +1,147 @@
 import Foundation
 import UIKit
+import WebKit
 import GoogleMaps
 import FirebaseFirestore
 
-class GoogleMapViewController: UIViewController {
-    var userId: String = ""  // 当前用户的 UID
-    private var mapView: GMSMapView!
-    
+
+class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
+    var userId: String = "" // 当前用户的 UID
+    private var webView: WKWebView!
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        print("User ID is: \(userId)")
 
-        // 初始化地图中心位置
-        let camera = GMSCameraPosition.camera(withLatitude: 20.0, longitude: 0.0, zoom: 2.0)
-        mapView = GMSMapView.map(withFrame: self.view.bounds, camera: camera)
-        mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        self.view.addSubview(mapView)
+        // Initialize the WKWebView
+        let webViewConfig = WKWebViewConfiguration()
+        let contentController = WKUserContentController()
+        contentController.add(self, name: "iosListener") // JS-to-Swift messaging
+        webViewConfig.userContentController = contentController
+        webView = WKWebView(frame: self.view.bounds, configuration: webViewConfig)
+        view.addSubview(webView)
 
-        // 从 Firestore 加载用户访问记录
-        fetchVisitedCities(for: userId) { cities in
-            for city in cities {
-                print("City: \(city.cityName), Country: \(city.countryCode), Lat: \(city.latitude), Lng: \(city.longitude)")
-                let marker = GMSMarker()
-                marker.position = CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)
-                marker.title = city.cityName
-                marker.snippet = city.countryCode
-                marker.map = self.mapView // 将标记添加到地图上
+        // Load the Cesium HTML page
+        if let url = Bundle.main.url(forResource: "globalMap", withExtension: "html") {
+            webView.loadFileURL(url, allowingReadAccessTo: url)
+        }
+
+        // Fetch visited cities and pass GeoJSON to the web page
+        fetchVisitedCities(for: userId) { geoJSON in
+            DispatchQueue.main.async {
+                self.sendGeoJSONToWebView(geoJSON: geoJSON)
             }
         }
     }
 
-    
-
-    private func fetchVisitedCities(for userId: String, completion: @escaping ([(latitude: Double, longitude: Double, cityName: String, countryCode: String)]) -> Void) {
+    private func fetchVisitedCities(for userId: String, completion: @escaping (String) -> Void) {
+        print("Fetching visits for userId: \(userId)")
         let db = Firestore.firestore()
 
-        // 先从 maps 集合中获取用户可以访问的 mapId 列表
         db.collection("maps")
-            .whereField("ownerId", isEqualTo: userId) // 用户是地图所有者
+            .whereField("ownerId", isEqualTo: userId)
             .getDocuments { (ownedSnapshot, error) in
                 if let error = error {
                     print("Error fetching owned maps: \(error.localizedDescription)")
-                    completion([])
+                    completion("")
                     return
                 }
 
                 let ownedMapIds = ownedSnapshot?.documents.compactMap { $0.documentID } ?? []
+                print("Owned map IDs: \(ownedMapIds)")
 
-                // 查询用户共享的地图
                 db.collection("maps")
-                    .whereField("sharedWith", arrayContains: userId) // 用户是共享用户
+                    .whereField("sharedWith", arrayContains: userId)
                     .getDocuments { (sharedSnapshot, error) in
                         if let error = error {
                             print("Error fetching shared maps: \(error.localizedDescription)")
-                            completion([])
+                            completion("")
                             return
                         }
 
                         let sharedMapIds = sharedSnapshot?.documents.compactMap { $0.documentID } ?? []
-                        let allMapIds = ownedMapIds + sharedMapIds // 合并所有地图 ID
+                        print("Shared map IDs: \(sharedMapIds)")
 
-                        print("All accessible mapIds for userId \(userId): \(allMapIds)")
+                        let allMapIds = ownedMapIds + sharedMapIds
+                        print("All accessible map IDs: \(allMapIds)")
 
-                        // 如果没有任何地图，直接返回空结果
                         guard !allMapIds.isEmpty else {
                             print("No maps found for userId: \(userId)")
-                            completion([])
+                            completion("")
                             return
                         }
 
-                        // 从 visits 集合中查询所有与这些地图相关的城市
+                        // Query visits for all maps
                         db.collection("visits")
                             .whereField("mapId", in: allMapIds)
                             .getDocuments { (visitsSnapshot, error) in
                                 if let error = error {
                                     print("Error fetching visits: \(error.localizedDescription)")
-                                    completion([])
+                                    completion("")
                                     return
                                 }
 
                                 guard let documents = visitsSnapshot?.documents else {
                                     print("No visits found for userId: \(userId)")
-                                    completion([])
+                                    completion("")
                                     return
                                 }
 
                                 print("Fetched \(documents.count) visits for userId: \(userId)")
 
-                                let cities = documents.compactMap { doc -> (latitude: Double, longitude: Double, cityName: String, countryCode: String)? in
-                                    let data = doc.data()
-                                    guard let cityName = data["cityName"] as? String,
-                                          let countryCode = data["countryCode"] as? String,
-                                          let latitude = data["latitude"] as? Double,
-                                          let longitude = data["longitude"] as? Double else {
-                                        return nil
+                                var features: [[String: Any]] = []
+                                for document in documents {
+                                    print("Visit document data: \(document.data())") // Print each visit document
+                                    if let cityName = document.data()["cityName"] as? String,
+                                       let countryCode = document.data()["countryCode"] as? String,
+                                       let latitude = document.data()["latitude"] as? Double,
+                                       let longitude = document.data()["longitude"] as? Double {
+                                        let feature: [String: Any] = [
+                                            "type": "Feature",
+                                            "properties": ["name": cityName, "country": countryCode],
+                                            "geometry": [
+                                                "type": "Point",
+                                                "coordinates": [longitude, latitude]
+                                            ]
+                                        ]
+                                        features.append(feature)
                                     }
-                                    return (latitude: latitude, longitude: longitude, cityName: cityName, countryCode: countryCode)
                                 }
 
-                                completion(cities)
+                                let geoJSON: [String: Any] = [
+                                    "type": "FeatureCollection",
+                                    "features": features
+                                ]
+
+                                if let jsonData = try? JSONSerialization.data(withJSONObject: geoJSON, options: []),
+                                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                                    print("GeoJSON created successfully: \(jsonString)")
+                                    completion(jsonString)
+                                } else {
+                                    print("Failed to create GeoJSON")
+                                    completion("")
+                                }
                             }
                     }
             }
     }
 
+    private func sendGeoJSONToWebView(geoJSON: String) {
+        let escapedGeoJSON = geoJSON
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "'", with: "\\'")
+        let script = "window.postMessage('\(escapedGeoJSON)', '*')"
+        print("Sending GeoJSON to WebView: \(escapedGeoJSON)")
+        webView.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("Error sending GeoJSON to WebView: \(error.localizedDescription)")
+            } else {
+                print("GeoJSON successfully sent to WebView.")
+            }
+        }
+    }
 
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        print("Message from JavaScript: \(message.body)")
+    }
 }
