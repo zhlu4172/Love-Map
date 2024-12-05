@@ -1,9 +1,7 @@
 import Foundation
 import UIKit
 import WebKit
-import GoogleMaps
 import FirebaseFirestore
-
 
 class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
     var userId: String = "" // 当前用户的 UID
@@ -17,6 +15,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
         let contentController = WKUserContentController()
         contentController.add(self, name: "iosListener") // JS-to-Swift messaging
         webViewConfig.userContentController = contentController
+        
         webView = WKWebView(frame: self.view.bounds, configuration: webViewConfig)
         view.addSubview(webView)
 
@@ -25,15 +24,15 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
             webView.loadFileURL(url, allowingReadAccessTo: url)
         }
 
-        // Fetch visited cities and pass GeoJSON to the web page
-        fetchVisitedCities(for: userId) { geoJSON in
+        // Fetch visited cities and pass only city and country names to the web page
+        fetchVisitedCities(for: userId) { cities in
             DispatchQueue.main.async {
-                self.sendGeoJSONToWebView(geoJSON: geoJSON)
+                self.sendCityDataToWebView(cities: cities)
             }
         }
     }
 
-    private func fetchVisitedCities(for userId: String, completion: @escaping (String) -> Void) {
+    private func fetchVisitedCities(for userId: String, completion: @escaping ([[String: String]]) -> Void) {
         print("Fetching visits for userId: \(userId)")
         let db = Firestore.firestore()
 
@@ -42,7 +41,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
             .getDocuments { (ownedSnapshot, error) in
                 if let error = error {
                     print("Error fetching owned maps: \(error.localizedDescription)")
-                    completion("")
+                    completion([])
                     return
                 }
 
@@ -54,7 +53,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
                     .getDocuments { (sharedSnapshot, error) in
                         if let error = error {
                             print("Error fetching shared maps: \(error.localizedDescription)")
-                            completion("")
+                            completion([])
                             return
                         }
 
@@ -66,7 +65,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
 
                         guard !allMapIds.isEmpty else {
                             print("No maps found for userId: \(userId)")
-                            completion("")
+                            completion([])
                             return
                         }
 
@@ -76,70 +75,61 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
                             .getDocuments { (visitsSnapshot, error) in
                                 if let error = error {
                                     print("Error fetching visits: \(error.localizedDescription)")
-                                    completion("")
+                                    completion([])
                                     return
                                 }
 
                                 guard let documents = visitsSnapshot?.documents else {
                                     print("No visits found for userId: \(userId)")
-                                    completion("")
+                                    completion([])
                                     return
                                 }
 
                                 print("Fetched \(documents.count) visits for userId: \(userId)")
 
-                                var features: [[String: Any]] = []
+                                var cities: [[String: String]] = []
                                 for document in documents {
                                     print("Visit document data: \(document.data())") // Print each visit document
                                     if let cityName = document.data()["cityName"] as? String,
-                                       let countryCode = document.data()["countryCode"] as? String,
-                                       let latitude = document.data()["latitude"] as? Double,
-                                       let longitude = document.data()["longitude"] as? Double {
-                                        let feature: [String: Any] = [
-                                            "type": "Feature",
-                                            "properties": ["name": cityName, "country": countryCode],
-                                            "geometry": [
-                                                "type": "Point",
-                                                "coordinates": [longitude, latitude]
-                                            ]
+                                       let countryCode = document.data()["countryCode"] as? String {
+                                        let city: [String: String] = [
+                                            "cityName": cityName,
+                                            "countryName": countryCode
                                         ]
-                                        features.append(feature)
+                                        cities.append(city)
                                     }
                                 }
 
-                                let geoJSON: [String: Any] = [
-                                    "type": "FeatureCollection",
-                                    "features": features
-                                ]
-
-                                if let jsonData = try? JSONSerialization.data(withJSONObject: geoJSON, options: []),
-                                   let jsonString = String(data: jsonData, encoding: .utf8) {
-                                    print("GeoJSON created successfully: \(jsonString)")
-                                    completion(jsonString)
-                                } else {
-                                    print("Failed to create GeoJSON")
-                                    completion("")
-                                }
+                                print("Cities to send: \(cities)")
+                                completion(cities)
                             }
                     }
             }
     }
 
-    private func sendGeoJSONToWebView(geoJSON: String) {
-        let escapedGeoJSON = geoJSON
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "'", with: "\\'")
-        let script = "window.postMessage('\(escapedGeoJSON)', '*')"
-        print("Sending GeoJSON to WebView: \(escapedGeoJSON)")
-        webView.evaluateJavaScript(script) { result, error in
-            if let error = error {
-                print("Error sending GeoJSON to WebView: \(error.localizedDescription)")
-            } else {
-                print("GeoJSON successfully sent to WebView.")
+    private func sendCityDataToWebView(cities: [[String: String]]) {
+        // Convert cities array into JSON string format
+        let citiesJSON: [String: Any] = ["cities": cities]
+        if let jsonData = try? JSONSerialization.data(withJSONObject: citiesJSON, options: []),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print("Sending city data to WebView: \(jsonString)")
+            
+            let escapedJSON = jsonString
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "'", with: "\\'")
+            let script = "window.postMessage('\(escapedJSON)', '*')"
+            
+            webView.evaluateJavaScript(script) { result, error in
+                if let error = error {
+                    print("Error sending data to WebView: \(error.localizedDescription)")
+                } else {
+                    print("Data successfully sent to WebView.")
+                }
             }
+        } else {
+            print("Failed to serialize city data to JSON.")
         }
     }
-
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         print("Message from JavaScript: \(message.body)")
