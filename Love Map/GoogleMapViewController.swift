@@ -32,7 +32,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
         }
     }
 
-    private func fetchVisitedCities(for userId: String, completion: @escaping ([[String: String]]) -> Void) {
+    private func fetchVisitedCities(for userId: String, completion: @escaping ([[String: Any]]) -> Void) {
         print("Fetching visits for userId: \(userId)")
         let db = Firestore.firestore()
 
@@ -87,14 +87,18 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
 
                                 print("Fetched \(documents.count) visits for userId: \(userId)")
 
-                                var cities: [[String: String]] = []
+                                var cities: [[String: Any]] = []
                                 for document in documents {
                                     print("Visit document data: \(document.data())") // Print each visit document
                                     if let cityName = document.data()["cityName"] as? String,
+                                       let latitude = document.data()["latitude"] as? Double,
+                                       let longitude = document.data()["longitude"] as? Double,
                                        let countryCode = document.data()["countryCode"] as? String {
-                                        let city: [String: String] = [
+                                        let city: [String: Any] = [
                                             "cityName": cityName,
-                                            "countryName": countryCode
+                                            "countryName": countryCode,
+                                            "latitude":latitude,
+                                            "longitude": longitude,
                                         ]
                                         cities.append(city)
                                     }
@@ -107,7 +111,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
             }
     }
 
-    private func sendCityDataToWebView(cities: [[String: String]]) {
+    private func sendCityDataToWebView(cities: [[String: Any]]) {
         // Convert cities array into JSON string format
         let citiesJSON: [String: Any] = ["cities": cities]
         if let jsonData = try? JSONSerialization.data(withJSONObject: citiesJSON, options: []),
