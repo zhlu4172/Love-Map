@@ -18,7 +18,7 @@ struct EditProfileView: View {
     @State private var isEditingUserName = false
     @State private var isEditingBio = false
     @State private var showingSuccessAlert = false
-    @Environment(\.presentationMode) private var presentationMode // 用于关闭视图
+    @Environment(\.presentationMode) private var presentationMode // For closing the view
     private let imgurService = ImgurService()
     
     init(viewModel: AuthenticationViewModel) {

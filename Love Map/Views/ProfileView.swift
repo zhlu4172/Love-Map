@@ -15,9 +15,9 @@ struct ProfileView: View {
     var body: some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 20) {
-                // 用户头像和昵称
+                // User avatar and nickname
                 HStack(alignment: .center) {
-                    // 头像
+                    // Avatar
                     if let url = URL(string: viewModel.emailSignInResult?.userAvatarUrl ?? ""), !(viewModel.emailSignInResult?.userAvatarUrl ?? "").isEmpty {
                         WebImage(url: url)
                             .resizable()
@@ -25,14 +25,14 @@ struct ProfileView: View {
                             .clipped()
                             .cornerRadius(geometry.size.width * 0.125)
                     } else {
-                        Image("ImageTry") // 本地默认头像
+                        Image("ImageTry") // Local default avatar
                             .resizable()
                             .frame(width: geometry.size.width * 0.25, height: geometry.size.width * 0.25)
                             .clipped()
                             .cornerRadius(geometry.size.width * 0.125)
                     }
                     
-                    // 用户名和简介
+                    // Username and bio
                     VStack(alignment: .leading) {
                         HStack {
                             Text(viewModel.emailSignInResult?.userName ?? "Unknown")

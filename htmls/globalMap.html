@@ -7,123 +7,225 @@
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.99/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.99/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   <style>
-    html, body, #cesiumContainer {
-      margin: 10px, 10px;
-      padding: 10px, 10px;
+    html, body {
+      margin: 0;
+      padding: 0;
       width: 100%;
       height: 80%;
       overflow: hidden;
+    }
+    #cesiumContainer {
+      margin: 0 20px; 
+      padding: 0;
+      width: calc(100% - 40px); 
+      height: 80%; 
+      overflow: hidden;
+      border-radius: 15px; 
+      border: 2px solid #e0e0e0;
     }
   </style>
 </head>
 <body>
   <div id="cesiumContainer"></div>
   <script>
-    // Set your Cesium Ion Access Token
-    Cesium.Ion.defaultAccessToken = ''; // Replace with your valid Cesium Ion Access Token
+    let config = {};
+    let viewer;
 
-    // Initialize the Cesium Viewer
-    const viewer = new Cesium.Viewer('cesiumContainer', {
-      terrainProvider: Cesium.createWorldTerrain(),
-      imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }), // Bing Maps Aerial
-      baseLayerPicker: false,
-      timeline: false,
-      animation: false,
-      fullscreenButton: true,
+    // Set up console redirection for iOS
+    console.log = function (message) { 
+      const messageStr = typeof message === 'object' ? JSON.stringify(message) : String(message);
+      window.webkit.messageHandlers.iosListener.postMessage(messageStr); 
+    };
+    console.error = function (error) { 
+      const errorStr = typeof error === 'object' ? JSON.stringify(error) : String(error);
+      window.webkit.messageHandlers.iosListener.postMessage("Error: " + errorStr); 
+    };
+
+    // Load configuration from config.json
+    async function loadConfig() {
+      console.log('Starting to load config...');
+
+      // Check if config was injected from iOS
+      if (window.configDataFromIOS) {
+        console.log('Using injected config from iOS:', window.configDataFromIOS);
+        config = window.configDataFromIOS;
+        console.log('Config loaded successfully:');
+        for (const [key, value] of Object.entries(config)) {
+          console.log(`   ${key}: ${value}`);
+        }
+        initializeCesium();
+        return;
+      }
+      
+      try {
+        console.log('No injected config found, attempting to fetch local config.json...');
+        const response = await fetch('config.json'); 
+
+        if (!response.ok) {
+          throw new Error(`Failed to load config.json: ${response.status} ${response.statusText}`);
+        }
+
+        const responseText = await response.text();
+        console.log('Raw response text:', responseText);
+
+        config = JSON.parse(responseText);
+        console.log('Config loaded successfully:', config);
+
+        // Validate required config keys
+        if (!config.CESIUM_ION_ACCESS_TOKEN || !config.GEOAPIFY_API_KEY) {
+          throw new Error('Config file missing required keys (CESIUM_ION_ACCESS_TOKEN or GEOAPIFY_API_KEY)');
+        }
+
+        console.log('Config validation passed, initializing Cesium...');
+        initializeCesium();
+      } catch (error) {
+        console.error('Error loading config:', error);
+      }
+    }
+
+    function initializeCesium() {
+      // Set Cesium Ion Access Token from config
+      Cesium.Ion.defaultAccessToken = config.CESIUM_ION_ACCESS_TOKEN;
+
+      // Initialize the Cesium Viewer
+      viewer = new Cesium.Viewer('cesiumContainer', {
+        terrainProvider: Cesium.createWorldTerrain(),
+        imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }), // Bing Maps Aerial
+        baseLayerPicker: false,
+        timeline: false,
+        animation: false,
+        fullscreenButton: true,
+      });
+      
+      // Ensure map is resized correctly
+      viewer.scene.globe.enableLighting = false;
+      viewer.scene.globe.depthTestAgainstTerrain = true;
+      
+      // Set atmosphere display effect
+      viewer.scene.globe.showGroundAtmosphere = true; 
+      viewer.scene.globe.atmosphereIntensity = 0.1;
+      viewer.scene.globe.atmosphereMieCoefficient = new Cesium.Cartesian3(21e-6, 21e-6, 21e-6);
+      viewer.scene.globe.atmosphereMieScaleHeight = 1200.0;
+      
+      // Set camera field of view, make earth display bigger
+      viewer.camera.frustum.fov = Cesium.Math.toRadians(45); 
+      
+      // Set initial view to earth center (display more land)
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),
+        orientation: {
+          heading: 0.0,
+          pitch: -Cesium.Math.toRadians(30),  
+          roll: 0.0
+        }
+      });
+      
+      // Force resize
+      setTimeout(() => {
+        viewer.resize();
+      }, 100);
+    }
+
+    // Function to add city markers (points) to the map
+    function addCityMarkers(cities) {
+      console.log(`Adding ${cities.length} city markers to the map`);
+      
+      // Clear previous markers
+      viewer.entities.removeAll();
+      
+      for (const city of cities) {
+        console.log(`Adding marker for city: ${city.cityName}, lat=${city.latitude}, lon=${city.longitude}`);
+        
+        // Create a point entity for each city
+        const entity = viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude),
+          point: {
+            pixelSize: 15, 
+            color: Cesium.Color.RED,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 3, 
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            scaleByDistance: new Cesium.NearFarScalar(1.5e2, 2.0, 1.5e7, 0.5) 
+          },
+          label: {
+            text: city.cityName,
+            font: '14pt sans-serif', 
+            fillColor: Cesium.Color.YELLOW, 
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 3, 
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -50), 
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            scaleByDistance: new Cesium.NearFarScalar(1.5e2, 1.0, 1.5e7, 0.5) 
+          }
+        });
+      }
+      
+      // Zoom to show all markers or set default view
+      if (cities.length > 0) {
+        // If there are city markers, zoom to show all markers
+        viewer.zoomTo(viewer.entities);
+      } else {
+        // If there are no city markers, show default view of earth
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),
+          orientation: {
+            heading: 0.0,
+            pitch: -Cesium.Math.PI_OVER_TWO,
+            roll: 0.0
+          }
+        });
+      }
+    }
+
+    // Listen for messages from Swift to load GeoJSON
+    window.addEventListener('message', (event) => {
+      console.log('Raw message received:', event.data); // Print raw received data
+      console.log('Raw message type:', typeof event.data); // Print data type
+      console.log('Raw message length:', event.data ? event.data.length : 'null/undefined'); // Print data length
+
+      try {
+        const cityData = JSON.parse(event.data); // Parse JSON data
+
+        console.log('Parsed city data:', cityData); // Print parsed data
+
+        // Validate data format
+        if (Array.isArray(cityData.cities)) {
+          const cities = cityData.cities.map(city => ({
+            cityName: city.cityName,
+            latitude: city.latitude,
+            longitude: city.longitude,
+          }));
+
+          console.log('Validated city list:', cities);
+
+          // Add city markers instead of boundaries
+          addCityMarkers(cities);
+        } else {
+          console.error('Invalid city data format');
+        }
+      } catch (error) {
+        console.error('Error processing city data:', error);
+      }
     });
 
-    console.log = function (message) { window.webkit.messageHandlers.iosListener.postMessage(message); };
-    console.error = function (error) { window.webkit.messageHandlers.iosListener.postMessage("Error: " + error); };
-    console.warn = function (warning) { window.webkit.messageHandlers.iosListener.postMessage("Warning: " + warning); };
-
-    console.log('Cesium Viewer Initialized');
-
-    // Function to fetch city boundary using Geoapify Geocode API
-      // Function to fetch city boundary using Geoapify Geocode API
-
-
-      async function fetchCityBoundary(lat, lon) {
-            const apiKey = ''; // Your Geoapify API key
-            const url = `https://api.geoapify.com/v1/boundaries/part-of?lat=${lat}&lon=${lon}&boundary=administrative&geometry=geometry_5000&apiKey=${apiKey}`;
-
-            console.log(`Fetching boundary for coordinates: lat=${lat}, lon=${lon} from Geoapify API: ${url}`);
-
-            try {
-              const response = await fetch(url);
-              if (!response.ok) {
-                console.error(`Error: Geoapify API responded with status ${response.status}`);
-                return null;
-              }
-
-              const data = await response.json();
-              if (data.features && data.features.length > 0) {
-                return data.features[0]; // Return the first feature (polygon boundary)
-              } else {
-                console.warn(`No boundary found for coordinates: lat=${lat}, lon=${lon}`);
-                return null;
-              }
-            } catch (error) {
-              console.error(`Error fetching boundary for coordinates: lat=${lat}, lon=${lon}:`, error);
-              return null;
-            }
-          }
-
-          // Function to load and display city boundaries (Polygons)
-          async function loadCityBoundaries(cities) {
-            for (const city of cities) {
-              console.log(`Processing city: ${city.cityName}, lat=${city.latitude}, lon=${city.longitude}`);
-              const cityBoundary = await fetchCityBoundary(city.latitude, city.longitude);
-
-              if (cityBoundary) {
-                console.log(`Boundary GeoJSON for ${city.cityName}:`, cityBoundary);
-
-                // Load GeoJSON directly into Cesium
-                const dataSource = await Cesium.GeoJsonDataSource.load(cityBoundary, {
-                  stroke: Cesium.Color.BLUE,
-                  fill: Cesium.Color.BLUE.withAlpha(0.2),
-                  strokeWidth: 2,
-                });
-
-                viewer.dataSources.add(dataSource);
-                viewer.flyTo(dataSource); // Automatically zoom to the polygon
-              } else {
-                console.warn(`Skipping ${city.cityName} as no boundary was found.`);
-              }
-            }
-          }
-
-          // Listen for messages from Swift to load GeoJSON
-          window.addEventListener('message', (event) => {
-            console.log('Raw message received:', event.data); // Print raw received data
-
-            try {
-              const cityData = JSON.parse(event.data); // Parse JSON data
-
-              console.log('Parsed city data:', cityData); // Print parsed data
-
-              // Validate data format
-              if (Array.isArray(cityData.cities)) {
-                const cities = cityData.cities.map(city => ({
-                  cityName: city.cityName,
-                  latitude: city.latitude,
-                  longitude: city.longitude,
-                }));
-
-                console.log('Validated city list:', cities);
-
-                // Load city boundaries
-                loadCityBoundaries(cities);
-              } else {
-                console.error('Invalid city data format');
-              }
-            } catch (error) {
-              console.error('Error processing city data:', error);
-            }
-          });
-
-
-
-
+    window.addEventListener('resize', function() {
+      if (viewer) {
+        viewer.resize();
+      }
+    });
+    
+    // Load config when page loads
+    function tryLoadAfterIOS() {
+      if (window.configDataFromIOS) {
+        console.log('Detected iOS config, running loadConfig...');
+        loadConfig();
+      } else {
+        console.log('Waiting for iOS config injection...');
+        setTimeout(tryLoadAfterIOS, 500);
+      }
+    }
+    tryLoadAfterIOS();
   </script>
 </body>
 </html>

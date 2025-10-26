@@ -7,10 +7,14 @@
 
 import SwiftUI
 import GoogleMaps
+import FirebaseFirestore
 
 struct MapView: View {
     @State private var userId: String = ""
-    @State private var isLoading = true // 控制加载状态
+    @State private var isLoading = true
+    @State private var visitedCountriesCount: Int = 0
+    @State private var totalCountriesCount: Int = 195
+    @State private var showPercentage: Bool = false 
 
     var body: some View {
         VStack {
@@ -18,7 +22,7 @@ struct MapView: View {
                 ProgressView("Loading map...")
             } else {
                 VStack {
-                    // 顶部的标题和按钮
+                    // Top title and buttons
                     HStack {
                         Spacer()
                         VStack {
@@ -33,7 +37,7 @@ struct MapView: View {
                         
                         HStack {
                             Button(action: {
-                                // 用户图标按钮
+                                // User Icon
                                 print("User icon tapped!")
                             }) {
                                 Image(systemName: "person.circle")
@@ -42,7 +46,7 @@ struct MapView: View {
                             }
                             
                             Button(action: {
-                                // 加号图标按钮
+                                // Plus Icon
                                 print("Add new location tapped!")
                             }) {
                                 Image(systemName: "plus.square")
@@ -52,13 +56,68 @@ struct MapView: View {
                         }
                         .padding()
                     }
-                    .padding(.top, 20) // 顶部留白
+                    .padding(.top, 20) 
                     
-                    Spacer()
+                    // Country count display
+                    VStack {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showPercentage.toggle() // change mode
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "airplane")
+                                    .font(.title2)
+                                    .foregroundColor(Color("PrimaryColor"))
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(showPercentage ? 
+                                        "Travelled \(String(format: "%.1f", Double(visitedCountriesCount) / Double(totalCountriesCount) * 100))% of the world" :
+                                        "Travelled \(visitedCountriesCount) out of \(totalCountriesCount) countries")
+                                        .font(.headline)
+                                        .foregroundColor(Color("PrimaryColor"))
+                                        .multilineTextAlignment(.leading)
+                                    
+                                    // Travelling progress bar
+                                    GeometryReader { geometry in
+                                        ZStack(alignment: .leading) {
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.3))
+                                                .frame(height: 4)
+                                                .cornerRadius(2)
+                                            
+                                            Rectangle()
+                                                .fill(Color("PrimaryColor"))
+                                                .frame(width: geometry.size.width * (Double(visitedCountriesCount) / Double(totalCountriesCount)), height: 4)
+                                                .cornerRadius(2)
+                                                .animation(.easeInOut(duration: 0.5), value: visitedCountriesCount)
+                                        }
+                                    }
+                                    .frame(height: 4)
+                                }
+                                
+                                // Change icon
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.title3)
+                                    .foregroundColor(Color("PrimaryColor"))
+                                    .rotationEffect(.degrees(showPercentage ? 180 : 0))
+                                    .animation(.easeInOut(duration: 0.3), value: showPercentage)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 15)
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(Color.white)
+                                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle()) // remove button default style
+                    }
+                    .padding(.bottom, 10)
 
-                    // GoogleMapView 显示地图，传递用户 ID
+                    // GoogleMapView show map，transfer user ID
                     GoogleMapView(userId: userId)
-                        .frame(height: 400) // 设置地图高度
+                        .frame(height: 400) // set height of the map
 
                     Spacer()
                 }
@@ -67,19 +126,81 @@ struct MapView: View {
         .background(Color.white)
         .onAppear {
             fetchCurrentUserId()
+            fetchVisitedCountriesCount()
         }
     }
 
-    /// 获取当前用户 ID
     private func fetchCurrentUserId() {
         do {
             let user = try AuthenticationManager.shared.getAuthenticatedUser()
-            userId = user.uid // 获取用户 UID
+            userId = user.uid 
             isLoading = false
             print("User ID fetched: \(userId)")
         } catch {
             print("Failed to fetch authenticated user: \(error)")
         }
+    }
+    
+    // Fetch visited countries count
+    private func fetchVisitedCountriesCount() {
+        guard !userId.isEmpty else { return }
+        
+        let db = Firestore.firestore()
+        
+        // Fetch owned maps
+        db.collection("maps")
+            .whereField("ownerId", isEqualTo: userId)
+            .getDocuments { (ownedSnapshot, error) in
+                if let error = error {
+                    print("Error fetching owned maps: \(error.localizedDescription)")
+                    return
+                }
+                
+                let ownedMapIds = ownedSnapshot?.documents.compactMap { $0.documentID } ?? []
+                
+                // fetch shared maps
+                db.collection("maps")
+                    .whereField("sharedWith", arrayContains: userId)
+                    .getDocuments { (sharedSnapshot, error) in
+                        if let error = error {
+                            print("Error fetching shared maps: \(error.localizedDescription)")
+                            return
+                        }
+                        
+                        let sharedMapIds = sharedSnapshot?.documents.compactMap { $0.documentID } ?? []
+                        let allMapIds = ownedMapIds + sharedMapIds
+                        
+                        guard !allMapIds.isEmpty else {
+                            print("No maps found for userId: \(userId)")
+                            return
+                        }
+                        
+                        // check all visits
+                        db.collection("visits")
+                            .whereField("mapId", in: allMapIds)
+                            .getDocuments { (visitsSnapshot, error) in
+                                if let error = error {
+                                    print("Error fetching visits: \(error.localizedDescription)")
+                                    return
+                                }
+                                
+                                guard let documents = visitsSnapshot?.documents else {
+                                    print("No visits found for userId: \(userId)")
+                                    return
+                                }
+                                
+                                // get unique countries code
+                                let uniqueCountries = Set(documents.compactMap { doc in
+                                    doc.data()["countryCode"] as? String
+                                })
+                                
+                                DispatchQueue.main.async {
+                                    self.visitedCountriesCount = uniqueCountries.count
+                                    print("Visited countries count: \(self.visitedCountriesCount)")
+                                }
+                            }
+                    }
+            }
     }
 }
 

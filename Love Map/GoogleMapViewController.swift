@@ -3,34 +3,73 @@ import UIKit
 import WebKit
 import FirebaseFirestore
 
-class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
-    var userId: String = "" // 当前用户的 UID
+class GoogleMapViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
+    var userId: String = "" // current user UID
     private var webView: WKWebView!
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    print("✅ HTML loaded, injecting config.json now...")
+    injectConfigJSON()
+}
 
-        // Initialize the WKWebView
-        let webViewConfig = WKWebViewConfiguration()
-        let contentController = WKUserContentController()
-        contentController.add(self, name: "iosListener") // JS-to-Swift messaging
-        webViewConfig.userContentController = contentController
-        
-        webView = WKWebView(frame: self.view.bounds, configuration: webViewConfig)
-        view.addSubview(webView)
+override func viewDidLoad() {
+    super.viewDidLoad()
 
-        // Load the Cesium HTML page
-        if let url = Bundle.main.url(forResource: "globalMap", withExtension: "html") {
-            webView.loadFileURL(url, allowingReadAccessTo: url)
-        }
+    let webViewConfig = WKWebViewConfiguration()
+    let contentController = WKUserContentController()
+    contentController.add(self, name: "iosListener")
+    webViewConfig.userContentController = contentController
+    
+    webView = WKWebView(frame: self.view.bounds, configuration: webViewConfig)
+    webView.navigationDelegate = self // ✅ 添加代理
+    view.addSubview(webView)
 
-        // Fetch visited cities and pass only city and country names to the web page
-        fetchVisitedCities(for: userId) { cities in
+    if let url = Bundle.main.url(forResource: "globalMap", withExtension: "html") {
+        webView.loadFileURL(url, allowingReadAccessTo: Bundle.main.bundleURL)
+    }
+
+    // ✅ 不再需要手动延迟注入
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        self.fetchVisitedCities(for: self.userId) { cities in
             DispatchQueue.main.async {
                 self.sendCityDataToWebView(cities: cities)
             }
         }
     }
+}
+
+    private func injectConfigJSON() {
+    // 找到 config.json 文件
+    if let configPath = Bundle.main.path(forResource: "config", ofType: "json") {
+        do {
+            let jsonString = try String(contentsOfFile: configPath)
+            // 转义特殊字符，避免 JS 报错
+            let safeString = jsonString
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+
+            // 注入到 JS 全局变量
+            let jsCode = """
+            window.configDataFromIOS = JSON.parse("\(safeString)");
+            console.log('✅ Config injected from iOS');
+            """
+
+            webView.evaluateJavaScript(jsCode) { result, error in
+                if let error = error {
+                    print("❌ Failed to inject config: \(error.localizedDescription)")
+                } else {
+                    print("✅ config.json successfully injected into JS")
+                }
+            }
+        } catch {
+            print("❌ Failed to read config.json: \(error.localizedDescription)")
+        }
+    } else {
+        print("❌ config.json not found in bundle")
+    }
+}
+
 
     private func fetchVisitedCities(for userId: String, completion: @escaping ([[String: Any]]) -> Void) {
         print("Fetching visits for userId: \(userId)")
@@ -97,7 +136,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
                                         let city: [String: Any] = [
                                             "cityName": cityName,
                                             "countryName": countryCode,
-                                            "latitude":latitude,
+                                            "latitude": latitude,
                                             "longitude": longitude,
                                         ]
                                         cities.append(city)
@@ -137,5 +176,20 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler {
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         print("Message from JavaScript: \(message.body)")
+    }
+}
+
+// Extension to load config programmatically if needed
+extension GoogleMapViewController {
+    private func loadConfig() -> [String: String]? {
+        guard let path = Bundle.main.path(forResource: "config", ofType: "json"),
+              let data = NSData(contentsOfFile: path) as Data?,
+              let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: String] else {
+            print("Failed to load config.json")
+            return nil
+        }
+        
+        print("Config loaded: \(jsonObject)")
+        return jsonObject
     }
 }

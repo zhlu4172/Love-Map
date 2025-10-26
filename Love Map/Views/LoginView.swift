@@ -65,12 +65,12 @@ struct LoginView: View {
                     Task {
                         do {
                             if isRegistering {
-                                // 调用 AuthenticationManager 中的注册方法
+                                // Call AuthenticationManager's registration method
                                 _ = try await AuthenticationManager.shared.registerWithEmail(email: email, password: password)
                                 errorMessage = "A verification email has been sent. Please check your inbox."
                                 showError = true
                             } else {
-                                // 调用 AuthenticationManager 中的登录方法
+                                // Call AuthenticationManager's login method
 //                                let user = try await AuthenticationManager.shared.loginWithEmail(email: email, password: password)
 //                                isLoggedIn = true
                                 try await viewModel.loginWithEmail(email: email, password: password)
