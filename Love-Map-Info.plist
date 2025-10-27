@@ -17,5 +17,7 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>35741415630-agko79pn3oihv5kmf4fofl5p0ph5bekj.apps.googleusercontent.com</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>This app uses your location to add your current city to your travel map.</string>
 </dict>
 </plist>
