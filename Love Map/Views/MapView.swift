@@ -15,6 +15,9 @@ struct MapView: View {
     @State private var visitedCountriesCount: Int = 0
     @State private var totalCountriesCount: Int = 195
     @State private var showPercentage: Bool = false 
+    @State private var shouldReloadMap = false
+    @State private var showAddCitySheet = false   
+    @State private var currentMapId: String = "" // current map ID
 
     var body: some View {
         VStack {
@@ -47,11 +50,17 @@ struct MapView: View {
                             
                             Button(action: {
                                 // Plus Icon
-                                print("Add new location tapped!")
+                                showAddCitySheet.toggle()
                             }) {
                                 Image(systemName: "plus.square")
                                     .resizable()
                                     .frame(width: 30, height: 30)
+                            }
+                            .sheet(isPresented: $showAddCitySheet, onDismiss: {
+                                fetchVisitedCountriesCount() 
+                                shouldReloadMap.toggle()
+                            }) {
+                                AddCityView(userId: userId, mapId: currentMapId)
                             }
                         }
                         .padding()
@@ -116,8 +125,8 @@ struct MapView: View {
                     .padding(.bottom, 10)
 
                     // GoogleMapView show map，transfer user ID
-                    GoogleMapView(userId: userId)
-                        .frame(height: 400) // set height of the map
+                    GoogleMapView(userId: userId, reloadTrigger: shouldReloadMap)
+                        .frame(height: 400)
 
                     Spacer()
                 }
@@ -126,7 +135,6 @@ struct MapView: View {
         .background(Color.white)
         .onAppear {
             fetchCurrentUserId()
-            fetchVisitedCountriesCount()
         }
     }
 
@@ -136,10 +144,35 @@ struct MapView: View {
             userId = user.uid 
             isLoading = false
             print("User ID fetched: \(userId)")
+            fetchUserMapId(for: userId)
         } catch {
             print("Failed to fetch authenticated user: \(error)")
         }
     }
+
+    private func fetchUserMapId(for userId: String) {
+        let db = Firestore.firestore()
+        db.collection("maps")
+            .whereField("ownerId", isEqualTo: userId)
+            .getDocuments { (snapshot, error) in
+                if let error = error {
+                    print("Error fetching maps: \(error.localizedDescription)")
+                    isLoading = false
+                    return
+                }
+                
+                if let mapDoc = snapshot?.documents.first {
+                    currentMapId = mapDoc.documentID
+                    print("✅ currentMapId: \(currentMapId)")
+                } else {
+                    print("⚠️ No map found for userId \(userId)")
+                }
+                
+                isLoading = false
+                fetchVisitedCountriesCount()
+            }
+    }
+
     
     // Fetch visited countries count
     private func fetchVisitedCountriesCount() {

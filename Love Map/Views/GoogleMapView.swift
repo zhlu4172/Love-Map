@@ -11,7 +11,8 @@ import GoogleMaps
 
 
 struct GoogleMapView: UIViewControllerRepresentable {
-    var userId: String // Current logged-in user's UID
+    var userId: String 
+    var reloadTrigger: Bool
 
     func makeUIViewController(context: Context) -> GoogleMapViewController {
         let viewController = GoogleMapViewController()
@@ -20,7 +21,7 @@ struct GoogleMapView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: GoogleMapViewController, context: Context) {
-        // If dynamic updates to the view controller are needed, implement here
+        uiViewController.reloadMapData()
     }
 }
 

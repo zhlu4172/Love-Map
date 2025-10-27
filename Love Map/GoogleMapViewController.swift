@@ -174,6 +174,15 @@ override func viewDidLoad() {
         }
     }
 
+    func reloadMapData() {
+        print("[GoogleMapViewController] Reloading map data for userId: \(userId)")
+        
+        fetchVisitedCities(for: userId) { cities in
+            DispatchQueue.main.async {
+                self.sendCityDataToWebView(cities: cities)
+            }
+        }
+    }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         print("Message from JavaScript: \(message.body)")
     }
