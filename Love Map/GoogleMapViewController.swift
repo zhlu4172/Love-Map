@@ -8,7 +8,7 @@ class GoogleMapViewController: UIViewController, WKScriptMessageHandler, WKNavig
     private var webView: WKWebView!
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    print("✅ HTML loaded, injecting config.json now...")
+    print("HTML loaded, injecting config.json now...")
     injectConfigJSON()
 }
 
@@ -21,14 +21,14 @@ override func viewDidLoad() {
     webViewConfig.userContentController = contentController
     
     webView = WKWebView(frame: self.view.bounds, configuration: webViewConfig)
-    webView.navigationDelegate = self // ✅ 添加代理
+    webView.navigationDelegate = self // Add delegate
     view.addSubview(webView)
 
     if let url = Bundle.main.url(forResource: "globalMap", withExtension: "html") {
         webView.loadFileURL(url, allowingReadAccessTo: Bundle.main.bundleURL)
     }
 
-    // ✅ 不再需要手动延迟注入
+    // No longer need manual delay injection
     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
         self.fetchVisitedCities(for: self.userId) { cities in
             DispatchQueue.main.async {
@@ -39,34 +39,34 @@ override func viewDidLoad() {
 }
 
     private func injectConfigJSON() {
-    // 找到 config.json 文件
+    // Find config.json file
     if let configPath = Bundle.main.path(forResource: "config", ofType: "json") {
         do {
             let jsonString = try String(contentsOfFile: configPath)
-            // 转义特殊字符，避免 JS 报错
+            // Escape special characters to avoid JS errors
             let safeString = jsonString
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "\"", with: "\\\"")
                 .replacingOccurrences(of: "\n", with: "\\n")
 
-            // 注入到 JS 全局变量
+            // Inject into JS global variable
             let jsCode = """
             window.configDataFromIOS = JSON.parse("\(safeString)");
-            console.log('✅ Config injected from iOS');
+            console.log('Config injected from iOS');
             """
 
             webView.evaluateJavaScript(jsCode) { result, error in
                 if let error = error {
-                    print("❌ Failed to inject config: \(error.localizedDescription)")
+                    print("Failed to inject config: \(error.localizedDescription)")
                 } else {
-                    print("✅ config.json successfully injected into JS")
+                    print("config.json successfully injected into JS")
                 }
             }
         } catch {
-            print("❌ Failed to read config.json: \(error.localizedDescription)")
+            print("Failed to read config.json: \(error.localizedDescription)")
         }
     } else {
-        print("❌ config.json not found in bundle")
+        print("config.json not found in bundle")
     }
 }
 
