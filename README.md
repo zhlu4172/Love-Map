@@ -18,6 +18,7 @@
 - **Google Maps API**: For map visualization and location search
 - **Cesium.js**: For 3D globe visualization and interactive Earth rendering
 - **Geoapify API**: For geocoding and location services
+- **Core Location**: For GPS location services and current location detection
 
 ### **Other Tools**
 - **Xcode**: For development and debugging.
@@ -36,6 +37,7 @@
    - **Dynamic Zoom**: Automatic zoom to show all your visited locations or default Earth view
    - **Smooth Navigation**: Intuitive camera controls for exploring the globe
    - **Atmospheric Effects**: Realistic atmosphere rendering for immersive experience
+   - **Full Screen Mode**: Built-in full screen button for immersive 3D globe experience
 
 ### 3. **Authentication**
 <img src="imgs/Login.png" alt="Log in Screen" width="400">
@@ -49,10 +51,26 @@
    - Create and customize your profile with a name and avatar.
    - View a summary of all your travel stats.
 
-### 5. **Record Travel Experiences**
-   - Easily log your travel destinations.
-   - Add descriptions or notes to your visited locations.
-   - Mark cities and places you've been on the map.
+### 5. **Add City Feature**
+<div style="display: flex; gap: 20px; justify-content: center; margin: 20px 0;">
+  <div style="text-align: center;">
+    <img src="imgs/AddCity.png" alt="Add City Half Screen" width="300">
+    <p style="font-size: 14px; color: #666; margin-top: 10px;">Half Screen Mode</p>
+  </div>
+  <div style="text-align: center;">
+    <img src="imgs/AddCityFullScreen.png" alt="Add City Full Screen" width="300">
+    <p style="font-size: 14px; color: #666; margin-top: 10px;">Full Screen Mode</p>
+  </div>
+</div>
+
+   - **City Search**: Search for cities worldwide using Geoapify API
+   - **Current Location**: Automatically detect and add your current location
+   - **Real-time Search**: Live search results as you type city names
+   - **One-tap Addition**: Easily add cities to your travel map
+   - **Location Services**: Uses Core Location for precise GPS coordinates
+   - **Half Screen Mode**: Add city sheet opens in medium size for quick access
+   - **Full Screen Mode**: Expandable to full screen for better browsing experience
+   - **Drag Indicator**: Visual indicator for easy sheet resizing
 
 ### 6. **Interactive Map**
    - A personalized map lights up visited locations.

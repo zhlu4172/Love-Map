@@ -8,6 +8,8 @@ struct AddCityView: View {
     @State private var searchResults: [CityResult] = []
     @State private var isLoading = false
     @State private var isLocating = false
+    @State private var showDuplicateAlert = false
+    @State private var duplicateCityName: String = ""
     @StateObject private var locationManager = LocationManager() 
     
     var userId: String
@@ -72,6 +74,13 @@ struct AddCityView: View {
                 fetchCityFromCoordinates(location.coordinate)
             }
         }
+        .alert(isPresented: $showDuplicateAlert) {
+            Alert(
+                title: Text("City already exists"),
+                message: Text("\(duplicateCityName) is already in your map."),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
 
     func fetchCities() {
@@ -107,24 +116,44 @@ struct AddCityView: View {
 
     func addCityToFirebase(_ city: CityResult) {
         let db = Firestore.firestore()
-        let visit: [String: Any] = [
-            "mapId": mapId,
-            "cityName": city.name,
-            "countryCode": city.country,
-            "latitude": city.lat,
-            "longitude": city.lon,
-            "createdAt": Timestamp(date: Date())
-        ]
         
-        db.collection("visits").addDocument(data: visit) { error in
-            if let error = error {
-                print("❌ Error adding city: \(error.localizedDescription)")
-            } else {
-                print("✅ \(city.name) added to mapId \(mapId)")
-                dismiss()
+        // Check if the city already exists in the map
+        db.collection("visits")
+            .whereField("mapId", isEqualTo: mapId)
+            .whereField("cityName", isEqualTo: city.name)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("Error checking existing city: \(error.localizedDescription)")
+                    return
+                }
+                
+                if let docs = snapshot?.documents, !docs.isEmpty {
+                    duplicateCityName = city.name
+                    showDuplicateAlert = true
+                    print("\(city.name) already exists in map \(mapId)")
+                    return
+                }
+                
+                let visit: [String: Any] = [
+                    "mapId": mapId,
+                    "cityName": city.name,
+                    "countryCode": city.country,
+                    "latitude": city.lat,
+                    "longitude": city.lon,
+                    "createdAt": Timestamp(date: Date())
+                ]
+                
+                db.collection("visits").addDocument(data: visit) { error in
+                    if let error = error {
+                        print("Error adding city: \(error.localizedDescription)")
+                    } else {
+                        print("\(city.name) added to map \(mapId)")
+                        dismiss()
+                    }
+                }
             }
-        }
     }
+
 
     func requestCurrentLocation() {
         isLocating = true

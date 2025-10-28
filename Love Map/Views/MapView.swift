@@ -1,10 +1,3 @@
-//
-//  MapView.swift
-//  Love Map
-//
-//  Created by Emma Lu on 20/10/2024.
-//
-
 import SwiftUI
 import GoogleMaps
 import FirebaseFirestore
@@ -61,6 +54,9 @@ struct MapView: View {
                                 shouldReloadMap.toggle()
                             }) {
                                 AddCityView(userId: userId, mapId: currentMapId)
+                                .presentationDetents([.medium, .large]) 
+                                .presentationDragIndicator(.visible)
+                                .presentationBackground(Color.white)
                             }
                         }
                         .padding()
