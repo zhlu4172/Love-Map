@@ -84,12 +84,18 @@
    - Seamless integration with Google Maps for location searches.
    - Store location details with precise longitude and latitude.
 
+---
 
+## To be Implemented 
 
+The following features are planned for future releases:
+
+- [ ] **Change Profile Picture**: Allow users to update and customize their profile pictures
+- [ ] **Add Friend Feature**: Enable users to add friends and share travel experiences 
 
 ---
 
-## Installation 🛠️
+## Installation 
 
 1. **Clone the Repository**:
    ```bash
