@@ -24,6 +24,9 @@
 - **Xcode**: For development and debugging.
 ---
 
+## Demo Video 🎥
+<video src="imgs/Demo.mov" controls width="100%"></video>
+
 ## Features 🌟
 ### 1. **Launch Screen**
 <img src="imgs/Launch_screen.png" alt="Launch Screen" width="400">
