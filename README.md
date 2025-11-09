@@ -51,7 +51,7 @@
 ### 4. **User Profiles**
 <img src="imgs/profile.png" alt="Profile Page" width="400">
 
-   - Create and customize your profile with a name and avatar.
+   - Modify your name and profile photo.
    - View a summary of all your travel stats.
 
 ### 5. **Add City Feature**
@@ -93,7 +93,7 @@
 
 The following features are planned for future releases:
 
-- [ ] **Change Profile Picture**: Allow users to update and customize their profile pictures
+- [x] **Change Profile Picture**: Allow users to update and customize their profile pictures
 - [ ] **Add Friend Feature**: Enable users to add friends and share travel experiences 
 
 ---
