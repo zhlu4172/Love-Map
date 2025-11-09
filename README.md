@@ -25,7 +25,7 @@
 ---
 
 ## Demo Video 🎥
-<video src="imgs/Demo.mp4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/52490108-62d4-4d3e-b6c4-809cec47c85b" controls width="100%"></video>
 
 ## Features 🌟
 ### 1. **Launch Screen**
