@@ -55,13 +55,17 @@ struct ProfileView: View {
                 
                 VStack(alignment: .leading, spacing: 10) {
                     // Friends
-                    HStack(spacing: 10) {
-                        Image(systemName: "person.2")
-                            .foregroundColor(.blue)
-                            .frame(width: 20, height: 20)
-                        Text("Friends")
-                            .font(.headline)
+                    NavigationLink(destination: FriendsListView(viewModel: viewModel)) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.2")
+                                .foregroundColor(.blue)
+                                .frame(width: 20, height: 20)
+                            Text("Friends")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                        }
                     }
+
                     
                     // Maps
                     HStack(spacing: 10) {

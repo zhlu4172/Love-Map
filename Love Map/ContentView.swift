@@ -20,14 +20,18 @@ struct ContentView: View {
 //        .padding()
         
         TabView {
-                // 第一个 Tab：Map 页面
+                // First Tab：Map page  
             MapView()
             .tabItem {
                 Label("Map", systemImage: "map")
             }
                 
-                // 第二个 Tab：Profile 页面
-            ProfileView(viewModel: viewModel)
+                // Second Tab：Profile page
+            NavigationView {
+                ProfileView(viewModel: viewModel)
+                    .navigationTitle("Profile")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
             .tabItem {
                 Label("Me", systemImage: "person")
             }
