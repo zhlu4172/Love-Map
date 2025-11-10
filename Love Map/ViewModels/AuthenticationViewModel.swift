@@ -25,13 +25,15 @@ struct EmailSignInResultModel: Equatable {
     var userName: String
     var userBio: String
     var userAvatarUrl: String
+    var displayId: String
 
-    init(uid: String, email: String, userName: String = "Unknown", userBio: String = "", userAvatarUrl: String = "") {
+    init(uid: String, email: String, userName: String = "Unknown", userBio: String = "", userAvatarUrl: String = "", displayId: String = "N/A") {
         self.uid = uid
         self.email = email
         self.userName = userName
         self.userBio = userBio
         self.userAvatarUrl = userAvatarUrl
+        self.displayId = displayId
     }
 }
 

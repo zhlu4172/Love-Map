@@ -1,10 +1,3 @@
-//
-//  AuthenticationManager.swift
-//  Love Map
-//
-//  Created by Emma Lu on 25/10/2024.
-//
-
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
@@ -12,89 +5,98 @@ import FirebaseFirestore
 final class AuthenticationManager {
     static let shared = AuthenticationManager()
     private init() {}
+    
+    // Generate a unique display ID (short code)
+    private func generateDisplayId() -> String {
+        let characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        let length = 6
+        return String((0..<length).map { _ in characters.randomElement()! })
+    }
 
-    // 获取当前已认证的用户信息
+    // Get authenticated user
     func getAuthenticatedUser() throws -> EmailSignInResultModel {
         guard let user = Auth.auth().currentUser else {
             throw URLError(.badServerResponse)
         }
+        
         return EmailSignInResultModel(
             uid: user.uid,
             email: user.email ?? "",
             userName: user.displayName ?? "Unknown",
-            userBio: "" // 可以在登录后通过 fetchUserProfile 更新
+            userBio: "",
+            userAvatarUrl: "",
+            displayId: "N/A"   
         )
     }
 
-    // Email 登录
+    // Email login
     func loginWithEmail(email: String, password: String) async throws -> EmailSignInResultModel {
         let authDataResult = try await Auth.auth().signIn(withEmail: email, password: password)
         let user = authDataResult.user
-        print("-------------------------")
-        print(user.uid)
         
-        if user.isEmailVerified {
-            return EmailSignInResultModel(
-                uid: user.uid,
-                email: user.email ?? "",
-                userName: user.displayName ?? "Unknown",
-                userBio: "" // 这里设置为空字符串，可以在登录后通过 fetchUserProfile 更新// 可以在登录后通过 fetchUserProfile 更新
-            )
-        } else {
+        guard user.isEmailVerified else {
             throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Please verify your email before logging in."])
         }
+        
+        print("-------------------------")
+        print("User UID:", user.uid)
+        
+        // Read displayId from Firestore
+        let db = Firestore.firestore()
+        let doc = try await db.collection("users").document(user.uid).getDocument()
+        let displayId = doc.data()?["displayId"] as? String ?? "N/A"
+        let avatarUrl = doc.data()?["avatarUrl"] as? String ?? ""
+        
+        return EmailSignInResultModel(
+            uid: user.uid,
+            email: user.email ?? "",
+            userName: user.displayName ?? "Unknown",
+            userBio: "",
+            userAvatarUrl: avatarUrl,
+            displayId: displayId
+        )
     }
 
-    // Email 注册并发送验证邮件
-//    func registerWithEmail(email: String, password: String) async throws -> EmailSignInResultModel {
-//        let authDataResult = try await Auth.auth().createUser(withEmail: email, password: password)
-//        try await authDataResult.user.sendEmailVerification()
-//        return EmailSignInResultModel(
-//            uid: authDataResult.user.uid,
-//            email: authDataResult.user.email ?? "",
-//            userName: authDataResult.user.displayName ?? "Unknown",
-//            userBio: ""
-//        )
-//    }
-    
-
-
-    // Email 注册并发送验证邮件
+    // MARK: - Email 注册并发送验证邮件
     func registerWithEmail(email: String, password: String) async throws -> EmailSignInResultModel {
         let authDataResult = try await Auth.auth().createUser(withEmail: email, password: password)
         try await authDataResult.user.sendEmailVerification()
         
         let user = authDataResult.user
         
-        // 在 Firestore 中为新用户创建记录
+        // Generate unique displayId
+        let displayId = generateDisplayId()
+        
+        // Save user data to Firestore
         let db = Firestore.firestore()
         let userData: [String: Any] = [
             "name": user.displayName ?? "Emma",
             "email": user.email ?? "",
             "bio": "This is bio",
-            "avatarUrl": ""
+            "avatarUrl": "",
+            "displayId": displayId
         ]
         
-        // 将用户数据保存到 Firestore 的 users 集合中
         try await db.collection("users").document(user.uid).setData(userData)
-        print("New user created in Firestore with UID: \(user.uid)")
+        print("New user created in Firestore with UID: \(user.uid), displayId: \(displayId)")
         
         return EmailSignInResultModel(
             uid: user.uid,
             email: user.email ?? "",
             userName: user.displayName ?? "Emma",
-            userBio: "This is bio"
+            userBio: "This is bio",
+            userAvatarUrl: "",
+            displayId: displayId
         )
     }
 
-    
-    // 密码重置
+    // Reset Password
     func resetPassword(email: String) async throws {
         try await Auth.auth().sendPasswordReset(withEmail: email)
     }
 }
 
-// Google 登录方法扩展
+// Google login method extension
 extension AuthenticationManager {
     @discardableResult
     func signInWithGoogle(tokens: GoogleSignInResultModel) async throws -> EmailSignInResultModel {
@@ -102,12 +104,39 @@ extension AuthenticationManager {
         let authDataResult = try await Auth.auth().signIn(with: credential)
         let user = authDataResult.user
         
+        let db = Firestore.firestore()
+        let userDocRef = db.collection("users").document(user.uid)
+        var displayId: String = "N/A"
+        
+        do {
+            let document = try await userDocRef.getDocument()
+            if document.exists {
+                // Existing account
+                displayId = document.data()?["displayId"] as? String ?? "N/A"
+            } else {
+                // First login, create Firestore record
+                displayId = generateDisplayId()
+                let userData: [String: Any] = [
+                    "name": user.displayName ?? "Unknown",
+                    "email": user.email ?? "",
+                    "bio": "",
+                    "avatarUrl": user.photoURL?.absoluteString ?? "",
+                    "displayId": displayId
+                ]
+                try await userDocRef.setData(userData)
+                print("New Google user created in Firestore with UID: \(user.uid), displayId: \(displayId)")
+            }
+        } catch {
+            print("Error checking/creating Google user document: \(error.localizedDescription)")
+        }
+        
         return EmailSignInResultModel(
             uid: user.uid,
             email: user.email ?? "",
             userName: user.displayName ?? "Unknown",
-            userBio: "" // 可以在登录后通过 fetchUserProfile 更新
+            userBio: "",
+            userAvatarUrl: user.photoURL?.absoluteString ?? "",
+            displayId: displayId
         )
     }
 }
-
