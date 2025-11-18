@@ -27,11 +27,12 @@ struct ContentView: View {
             }
                 
                 // Second Tab：Profile page
-            NavigationView {
+            NavigationStack {
                 ProfileView(viewModel: viewModel)
                     .navigationTitle("Profile")
-                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationBarTitleDisplayMode(.large)
             }
+
             .tabItem {
                 Label("Me", systemImage: "person")
             }

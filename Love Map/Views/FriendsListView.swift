@@ -11,6 +11,10 @@ struct UserProfile: Identifiable {
 struct FriendsListView: View {
     @ObservedObject var viewModel: AuthenticationViewModel
     @State private var friends: [UserProfile] = []
+    @State private var showingAddFriendAlert = false
+    @State private var friendDisplayId = ""
+    @State private var showingMessage = false
+    @State private var messageText = ""
     
     var body: some View {
         VStack {
@@ -37,24 +41,55 @@ struct FriendsListView: View {
                             .font(.headline)
                     }
                 }
+                .listStyle(.plain)
             }
         }
         .navigationTitle("Friends")
-        .onAppear {
-            Task {
-                await fetchFriends()
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
+                    showingAddFriendAlert = true
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundColor(.blue)
+                }
+                
+                Button {
+                    Task { await fetchFriends() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundColor(.blue)
+                }
             }
         }
-        .toolbar {
-            Button(action: {
-                Task { await fetchFriends() }
-            }) {
-                Image(systemName: "arrow.clockwise")
-            }
+        .alert("Add Friend", isPresented: $showingAddFriendAlert) {
+            TextField("Enter friend's display ID", text: $friendDisplayId)
+            Button("Add") { Task { await addFriendByDisplayId() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter your friend's display ID to send a request.")
+        }
+        .overlay(
+            Group {
+                if showingMessage {
+                    Text(messageText)
+                        .padding()
+                        .background(Color.black.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .transition(.opacity)
+                        .padding(.bottom, 50)
+                }
+            },
+            alignment: .bottom
+        )
+        .onAppear {
+            Task { await fetchFriends() }
         }
     }
 
-    // Firestore Query
+    // MARK: - Fetch Friends
     func fetchFriends() async {
         guard let currentUserId = viewModel.emailSignInResult?.uid else {
             print("No current user ID")
@@ -81,9 +116,70 @@ struct FriendsListView: View {
                     fetchedFriends.append(UserProfile(id: friendId, name: name, avatarUrl: avatarUrl))
                 }
             }
-            self.friends = fetchedFriends
+            await MainActor.run {
+                self.friends = fetchedFriends
+            }
         } catch {
             print("Error fetching friends: \(error)")
+        }
+    }
+
+    // MARK: - Add Friend
+    func addFriendByDisplayId() async {
+        guard let currentUserId = viewModel.emailSignInResult?.uid else {
+            print("No current user ID")
+            return
+        }
+        let db = Firestore.firestore()
+
+        do {
+            let userQuery = try await db.collection("users")
+                .whereField("displayId", isEqualTo: friendDisplayId.uppercased())
+                .getDocuments()
+            
+            guard let friendDoc = userQuery.documents.first else {
+                await showTempMessage("User not found")
+                return
+            }
+            let friendId = friendDoc.documentID
+            
+            let existingQuery = try await db.collection("friends")
+                .whereField("userIds", arrayContains: currentUserId)
+                .getDocuments()
+            
+            for doc in existingQuery.documents {
+                let ids = doc["userIds"] as? [String] ?? []
+                if ids.contains(friendId) {
+                    await showTempMessage("Already added or pending")
+                    return
+                }
+            }
+            
+            let friendData: [String: Any] = [
+                "userIds": [currentUserId, friendId],
+                "requestedBy": currentUserId,
+                "status": "accepted",
+                "requestedAt": Timestamp(date: Date())
+            ]
+            _ = try await db.collection("friends").addDocument(data: friendData)
+            await showTempMessage("Friend added successfully")
+            await fetchFriends()
+        } catch {
+            print("Error adding friend: \(error)")
+            await showTempMessage("Error adding friend")
+        }
+    }
+
+    // MARK: - Toast Message
+    @MainActor
+    func showTempMessage(_ text: String) async {
+        withAnimation {
+            messageText = text
+            showingMessage = true
+        }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        withAnimation {
+            showingMessage = false
         }
     }
 }

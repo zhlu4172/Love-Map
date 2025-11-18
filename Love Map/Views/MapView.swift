@@ -12,6 +12,7 @@ struct MapView: View {
     @State private var showAddCitySheet = false   
     @State private var currentMapId: String = "" // current map ID
 
+
     var body: some View {
         VStack {
             if isLoading {
@@ -122,7 +123,9 @@ struct MapView: View {
 
                     // GoogleMapView show map，transfer user ID
                     GoogleMapView(userId: userId, reloadTrigger: shouldReloadMap)
-                        .frame(height: 400)
+                        .frame(maxWidth: .infinity)
+                        .frame(maxHeight: .infinity)
+                        .clipped()
 
                     Spacer()
                 }
